@@ -89,7 +89,11 @@ export default async function GroupDetailPage({ params }: { params: { id: string
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <DebtGraph members={memberList} expenses={expenses} simplifiedTransactions={simplifiedTransactions} />
+          <DebtGraph
+  members={memberList.map((m) => ({ id: m.userId, name: m.name }))}
+  expenses={expenses}
+  simplifiedTransactions={simplifiedTransactions}
+/>
 
             <div>
               <ExpenseForm groupId={group.id} members={members} meId={session.userId} />
