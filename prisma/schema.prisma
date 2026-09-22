@@ -1,0 +1,98 @@
+// Prisma schema for SplitWise++
+// SQLite for zero-config local dev; swap provider to "postgresql" + a
+// connection string for production (see README "Going to production").
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships    Membership[]
+  paidExpenses   Expense[]      @relation("PaidBy")
+  expenseShares  ExpenseShare[]
+  settlementsOut Settlement[]   @relation("SettlementFrom")
+  settlementsIn  Settlement[]   @relation("SettlementTo")
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  emoji     String   @default("💸")
+  createdAt DateTime @default(now())
+
+  members     Membership[]
+  expenses    Expense[]
+  settlements Settlement[]
+}
+
+model Membership {
+  id      String @id @default(cuid())
+  userId  String
+  groupId String
+  role    String @default("member") // "owner" | "member"
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  description String
+  amountCents Int
+  category    String   @default("general")
+  createdAt   DateTime @default(now())
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  paidById String
+  paidBy   User   @relation("PaidBy", fields: [paidById], references: [id])
+
+  shares ExpenseShare[]
+}
+
+// Who owes what portion of a given expense. Sum of shareCents across
+// an expense's ExpenseShare rows always equals the expense's amountCents.
+model ExpenseShare {
+  id          String @id @default(cuid())
+  expenseId   String
+  userId      String
+  shareCents  Int
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+}
+
+// A recorded real-world payment someone made to settle a debt.
+// Distinct from the *suggested* settlements the simplification
+// algorithm computes on the fly (those are never persisted until
+// a user confirms them, at which point a Settlement row is created).
+model Settlement {
+  id          String   @id @default(cuid())
+  groupId     String
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  fromUserId String
+  fromUser   User   @relation("SettlementFrom", fields: [fromUserId], references: [id])
+
+  toUserId String
+  toUser   User   @relation("SettlementTo", fields: [toUserId], references: [id])
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
